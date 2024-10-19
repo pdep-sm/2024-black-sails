@@ -1,0 +1,7 @@
+describe "Testing" {
+
+  test "test" {
+    assert.equals(100, 100)
+  }
+
+}
