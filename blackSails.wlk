@@ -1,12 +1,11 @@
 class Embarcacion{
-  const tripulacion
+  const property tripulacion
   const caniones
-  var botin
-  var ubicacion
+  var property botin
+  var property ubicacion
 
   //Punto 1
-  /* Calcular el poder de daño de una embarcación, que está dada por la suma total de los corajes del total de la tripulación, más el poder de daño de todos los cañones.
-  */
+  /* Calcular el poder de daño de una embarcación, que está dada por la suma total de los corajes del total de la tripulación, más el poder de daño de todos los cañones.*/
   method poder() = tripulacion.coraje() + self.danioCaniones()
 
   method danioCaniones() = caniones.sum{canion => canion.danio()}
@@ -14,12 +13,97 @@ class Embarcacion{
   //Punto 2
   // Obtener al tripulante más corajudo de la embarcación (que no es capitán, ni contramaestre).
   method tripulanteMasCorajudo() = tripulacion.pirataMasCorajudo()
+
+  //Punto 3
+  /* Esto ocurre cuando la diferencia de las coordenadas es menor a un valor configurable en el sistema, siempre y cuando correspondan al mismo océano. Nota: Utilizar el cálculo de distancia entre dos puntos.*/
+
+  method puedeEntrarEnConflicto(otraEmbarcacion) = 
+                ubicacion.entraEnDistanciaConflictiva(otraEmbarcacion.ubicacion())
+
+  method tieneHabilNegociador() = tripulacion.tieneHabilNegociador()
+
+  method modificarBotin(cantidad) {
+    botin += cantidad
+  }
+}
+
+class Ubicacion{
+  const property oceano
+  const property coordenadaX
+  const property coordenadaY
+
+  method entraEnDistanciaConflictiva(otraUbicacion) = 
+        self.estaEnMismoOceano(otraUbicacion) && self.estaEnDistanciaConflictiva(otraUbicacion)
+
+  method estaEnMismoOceano(otraUbicacion) = otraUbicacion.oceano() == oceano
+
+  method estaEnDistanciaConflictiva(otraUbicacion) =
+          self.distancia(otraUbicacion) < ubicacion.distanciaConflictiva()
+
+  method distancia(otraUbicacion) = 
+          ((otraUbicacion.coordenadaX() - coordenadaX).square() +
+          (otraUbicacion.coordenadaY() - coordenadaY).square()).squareRoot()
+}
+
+object ubicacion {
+  var property distanciaConflictiva = 100
+}
+
+//Punto 4
+/*Dadas dos embarcaciones y una forma de contienda, saber si la primera puede tomar a la segunda o no.
+Por otra parte, realizar la toma (el resultado de la contienda) propiamente dicha de la embarcación vencida. Tener en cuenta que dependiendo de la toma de la embarcación pasan cosas distintas.*/
+
+class Contienda{
+  method puedeTomar(embarcacionGanadora, embarcacionPerdedora) =
+      embarcacionGanadora.puedeEntrarEnConflicto(embarcacionPerdedora)
+
+  method tomar(embarcacionGanadora, embarcacionPerdedora) {
+    if(!self.puedeTomar(embarcacionGanadora, embarcacionPerdedora)){
+      throw new Exception (message = "No se puede tomar")
+    }
+  }
+
+}
+
+object batalla inherits Contienda{
+  override method puedeTomar(embarcacionGanadora, embarcacionPerdedora) = 
+  super(embarcacionGanadora, embarcacionPerdedora) &&
+            embarcacionGanadora.poder() > embarcacionPerdedora.poder()
+
+  override method tomar(embarcacionGanadora, embarcacionPerdedora) {
+    super(embarcacionGanadora, embarcacionPerdedora)
+    self.mezclar(embarcacionGanadora.tripulacion(), 
+                  embarcacionPerdedora.tripulacion())
+  }
+
+  method mezclar(tripulacionGanadora, tripulacionPerdedora){
+    tripulacionGanadora.modificarCorajeBase(5)
+    tripulacionPerdedora.matarCobardes(3)
+    tripulacionPerdedora.capitan(tripulacionGanadora.contramaestre())
+    tripulacionGanadora.promoverAContramaestre()
+    //tripulacionPerdedora.recibirTripulantes(tripulacionGanadora,3)
+    tripulacionGanadora.transferirTripulantes(tripulacionPerdedora,3)
+  
+  }
+}
+
+object negociacion inherits Contienda{
+  override method puedeTomar(embarcacionGanadora, embarcacionPerdedora) = 
+  super(embarcacionGanadora, embarcacionPerdedora) &&
+    embarcacionGanadora.tieneHabilNegociador()
+
+  override method tomar(embarcacionGanadora, embarcacionPerdedora){
+    super(embarcacionGanadora, embarcacionPerdedora)
+    const mitadBotin = embarcacionPerdedora.botin() / 2
+    embarcacionGanadora.modificarBotin(mitadBotin)
+    embarcacionPerdedora.modificarBotin(-mitadBotin)
+  }
 }
 
 //En la embarcación están el capitán, el contramaestre y la tripulación general (piratas); 
 class Tripulacion{
-  var capitan
-  var contramaestre
+  var property capitan
+  var property contramaestre
   const piratas
 
   method coraje() = self.tripulacionTotal().sum{pirata => pirata.coraje()} 
@@ -27,6 +111,23 @@ class Tripulacion{
   method tripulacionTotal() = [capitan, contramaestre] ++ piratas
 
   method pirataMasCorajudo() = piratas.max{pirata => pirata.coraje()}
+  
+  method tieneHabilNegociador() = self.tripulacionTotal().any{tripulante => tripulante.esHabilNegociador()}
+
+  method modificarCorajeBase(cantidad){
+    self.tripulacionTotal().forEach{tripulante => 
+                tripulante.modificarCorajeBase(cantidad)}
+  }
+
+  method matarCobardes(cantidad){
+    const piratasCobardes = self.piratasPorCoraje().take(cantidad)
+    piratas.removeAll(piratasCobardes)
+
+  }
+
+  //method piratasPorCoraje() = piratas.sortedBy{ p => p.coraje()}
+  method piratasPorCoraje() = piratas.sortedBy{ p1, p2 => p1.coraje() < p2.coraje()}
+
 }
 
 
@@ -38,6 +139,12 @@ class Tripulante{
   method coraje() = corajeBase + self.totalDanio()
 
   method totalDanio() = armas.sum{arma => arma.danio()}
+
+  method esHabilNegociador() = nivelDeInteligencia > 50
+
+  method modificarCorajeBase(cantidad) {
+    corajeBase += cantidad
+  }
 
 }
 
